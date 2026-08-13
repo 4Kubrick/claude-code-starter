@@ -1,35 +1,27 @@
 # .NET Stack Routing
 
-When the repository contains `.sln`, `.slnx`, `.csproj` or C# source, this rule is authoritative for stack-specific work.
+When a repository contains `.sln`, `.slnx`, `.csproj`, C# or XAML, use the .NET path.
 
-## Prefer
-- Architecture -> `dotnet-architect`
-- ASP.NET Core / C# / APIs / SignalR / RabbitMQ / Quartz.NET -> `dotnet-backend`
-- .NET MAUI -> `maui-engineer`
-- WinForms / DevExpress -> `winforms-devexpress`
-- SQL Server / PostgreSQL / SQLite / EF Core -> `database-architect-dotnet`
-- Security -> `security-dotnet`
-- Docker / NGINX / CI/CD / observability -> `devops-dotnet`
+## Specialists
+- Architecture: `dotnet-architect`
+- ASP.NET Core and C#: `dotnet-backend`
+- .NET MAUI: `maui-engineer`
+- WinForms and DevExpress: `winforms-devexpress`
+- EF Core and databases: `database-architect-dotnet`
+- Operations and deployment: `devops-dotnet`
 
-Reuse generic upstream agents for repository research, performance, simplicity, security review and documentation research.
+Generic upstream agents remain useful for repository research, performance, simplicity, and documentation.
 
-## Do not route .NET work to
-- `kieran-typescript-reviewer`
-- `feature-builder-ui`
-- `feature-builder-fullstack`
-- `feature-builder-data`
-- `tailwind-react-guidelines`
-- `supabase-dev-guidelines`
+## Implementation Units
+The upstream builder names are intentionally retained and repurposed for .NET in this fork:
+- backend/data: `feature-builder-data`
+- MAUI, WinForms, DevExpress, or Blazor UI: `feature-builder-ui`
+- cross-layer .NET work: `feature-builder-fullstack`
 
-unless the inspected repository actually contains those technologies.
+Do not use React/Tailwind/Supabase-specific skills for .NET-only work. Use them only when those technologies are actually present in the changed scope.
 
-## Validation defaults
-1. Detect target framework and solution/project structure.
-2. Restore only when dependency assets require it.
-3. Build the narrowest relevant project/solution.
-4. Run targeted tests before broader suites.
-5. Treat MAUI/WinForms compile validation separately from device/manual UI validation.
-6. Inspect EF Core migrations and provider differences for schema changes.
+## Validation
+Use `dotnet-validation`. Build the narrowest relevant project or solution and run targeted tests. Treat native MAUI and WinForms UI smoke checks separately from compilation.
 
-## Council policy
-Use `ask-council` for expensive-to-reverse choices, architecture/security/performance trade-offs, migrations, production incidents with competing hypotheses, or explicit multi-expert requests. Keep panels focused.
+## Council
+Use `ask-council` for important multi-discipline decisions and keep the panel focused.
