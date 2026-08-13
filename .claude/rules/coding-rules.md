@@ -1,217 +1,143 @@
-## 1. Rozmiar plików i funkcji
+# Coding Rules — .NET-first
 
-### Reguły
+These rules are the default when the repository contains `.sln`, `.csproj`, C# or XAML. If a project intentionally uses another stack, follow the repository's own conventions instead of forcing .NET rules onto it.
 
-- Plik > 300 linii = refaktoruj. Podziel na mniejsze moduły
-- Funkcja > 50 linii = wyciągnij pod-funkcje. Jedna funkcja = jeden poziom abstrakcji
-- Funkcja > 6 argumentów = stwórz obiekt konfiguracyjny / interfejs
-- Nesting > 2 poziomy = użyj early return
-- Klasa > 1 odpowiedzialność = podziel (Single Responsibility Principle)
----
+## 1. Scope and simplicity
 
-## 2. Testowanie
+- Prefer the smallest change that solves the requested problem.
+- Do not refactor unrelated code while implementing a feature or fix.
+- One class/module should have one clear responsibility.
+- Extract an abstraction only when it removes real duplication or clarifies a stable boundary.
+- Prefer incremental modernization over rewrites, especially in WinForms/DevExpress codebases.
+- Preserve public contracts unless changing them is explicitly part of the task.
 
-### Reguły
+## 2. C# conventions
 
-- NIGDY nie modyfikuj istniejących testów żeby "naprawić" failing test — napraw implementację
-- NIGDY nie usuwaj testów, chyba że usuwasz testowaną funkcjonalność
-- NIGDY nie osłabiaj asercji (np. `toBe(429)` na `toBeDefined()`) — to nie jest fix
-- NIGDY nie mockuj tego co testujesz — mockuj TYLKO zewnętrzne serwisy
-- Każdy test MUSI mieć minimum 1 asercję — zero assertion-free testów
-- Każda nowa funkcja = minimum 1 test happy path + 1 test error case
-- Po napisaniu kodu uruchom testy PRZED deklaracją "gotowe"
-- Nie ładuj pełnych datasetów w unit testach — używaj fixtures w `tests/fixtures/`
-- Pattern: Arrange-Act-Assert wewnątrz describe/it bloków
-- Testuj ZACHOWANIE (behavior), nie implementację (internal state)
-- Pisz testy WERTYKALNIE (tracer bullets): jeden test → jego implementacja → następny. NIGDY nie pisz wszystkich testów naraz, a potem całej implementacji (horizontal slicing) — to produkuje testy „kształtu" (struktur i sygnatur), nie zachowania; przechodzą, gdy zachowanie się psuje
-- Nigdy nie refaktoruj, gdy test jest RED — najpierw doprowadź do GREEN
----
+- Use modern C# supported by the target framework; inspect `TargetFramework`/`LangVersion` first.
+- Public types/members: `PascalCase`; locals/parameters/private fields: normal .NET conventions (`camelCase`, `_field`).
+- Interfaces use the normal .NET `I` prefix when the codebase does so.
+- Prefer nullable reference types and explicit null handling over `!` suppression.
+- Prefer records/value objects only where value semantics are useful; do not convert classes mechanically.
+- Prefer `var` when the type is obvious from the right-hand side; otherwise favor readability.
+- Do not introduce clever LINQ when a simple loop is clearer or materially faster.
 
-## 3. Organizacja kodu
+## 3. Async, cancellation and resources
 
-### Reguły
+- Never block async code with `.Result`, `.Wait()` or `.GetAwaiter().GetResult()` in application paths unless a framework boundary genuinely requires it.
+- Propagate `CancellationToken` through I/O, EF Core, HTTP, SignalR and background operations when cancellation is meaningful.
+- Use `await using`/`using` for disposable resources.
+- Do not use `async void` except event handlers.
+- Avoid fire-and-forget tasks unless ownership, exception handling and lifetime are explicit.
+- Treat UI thread affinity explicitly in MAUI/WinForms; expensive work must not run on the UI thread.
 
-- Jedna odpowiedzialność per moduł/klasa/funkcja
-- Kolokacja: testy obok plików źródłowych, nie w osobnym drzewie
-- Wyciągaj shared logic do dedykowanego modułu zamiast duplikować
-- Nie twórz abstrakcji "na przyszłość" — abstrakcja dopiero gdy jest 2+ użycia
-- Nie twórz konfiguracji dla wartości które nigdy się nie zmienią
-- Importy: grouped (stdlib, third-party, local), sorted alphabetically
-- Jeden eksport per plik dla głównych modułów
----
+## 4. Error handling and logging
 
-## 4. Error handling
+- Never swallow exceptions with empty `catch` blocks.
+- Catch specific exceptions when recovery is possible; otherwise let the failure propagate to the appropriate boundary.
+- Use structured logging through the project's logging stack (`ILogger`, NLog, Serilog, etc.); no production `Console.WriteLine` debugging.
+- Do not log secrets, access tokens, connection strings or unnecessary PII.
+- ASP.NET Core APIs should return consistent problem/error responses; prefer framework `ProblemDetails` when it fits the project.
+- Do not use exceptions for normal control flow.
 
-### Reguły
+## 5. ASP.NET Core / APIs
 
-- NIGDY nie łap wyjątków i nie ignoruj ich (empty catch block)
-- NIGDY nie używaj pustego `catch {}` — zawsze loguj albo re-throw
-- Rzucaj typed errors, nie string messages (`throw new AppError(...)`, nie `throw "coś poszło nie tak"`)
-- Fail fast — waliduj inputy na początku funkcji
-- Nie over-catchuj — łap KONKRETNE typy błędów, nie generyczne `Error`
-- API routes: ustandaryzowany format odpowiedzi `{ data, error: { code, message } }`
-- Używaj structured logging (JSON format, np. pino), nie `console.log`
-- Nie suppressuj błędów — finding zawsze wymaga naprawy, nie racjonalizacji
----
+- Validate input at the API boundary.
+- Authentication and authorization are separate concerns; enforce authorization server-side.
+- Never trust roles/claims sent by a client without server verification.
+- Use DI with correct lifetimes; do not capture scoped services in singletons.
+- Prefer typed options/configuration over scattered environment-variable reads.
+- Public endpoints should consider rate limits, idempotency and abuse cases where relevant.
+- Preserve backwards compatibility of external API contracts unless a breaking change is intentional.
 
-## 5. Anty-patterny specyficzne dla AI
+## 6. EF Core and databases
 
-### Reguły (zapobieganie)
+- Avoid N+1 queries. Inspect generated query shape when Includes/navigation access are involved.
+- Prefer projections (`Select`) for read models instead of materializing full entities when only a subset is needed.
+- Use `AsNoTracking()` for read-only queries when appropriate.
+- Do not call `ToList()`/`AsEnumerable()` early and accidentally move filtering to memory.
+- Use parameterized SQL; never concatenate user input into SQL.
+- Migrations must be reviewable and safe for existing data. Consider rollback/forward-fix strategy.
+- Keep transactions as short as practical and understand isolation/concurrency implications.
+- For SQL Server/PostgreSQL/SQLite differences, do not assume provider behavior is identical.
 
-- Nie zakładaj że biblioteka jest dostępna — sprawdź package.json / cargo.toml / requirements.txt PRZED użyciem
-- Nie dodawaj importów które nie są używane
-- Nie twórz "defensive code" na scenariusze które nie mogą wystąpić
-- Nie rób refaktoryzacji 160 plików na podstawie vague comment — PYTAJ o potwierdzenie
-- Nie modyfikuj swoich własnych reguł / review scripts / hooks
-- Kiedy test failuje — napraw KOD, nie test
-- Kiedy linter failuje — napraw KOD, nie konfigurację lintera
-- Nie obchodź blokad przez zmianę narzędzia (Edit zablokowany, więc sed, python -c)
-- Nie podejmuj autonomous decisions przy niejasnych instrukcjach — PYTAJ
-- Nie dismissuj findings jako "pre-existing" — napraw albo zgłoś
+## 7. MAUI
 
-### Katalog 10 udokumentowanych anty-patternów AI
+- Keep the UI thread responsive; measure navigation/startup/list rendering before optimizing.
+- Respect Android/iOS lifecycle and permission differences.
+- Dispose/unsubscribe long-lived handlers, timers and events that can retain pages/view-models.
+- For `CollectionView`, avoid expensive bindings/converters and unnecessary full collection replacement.
+- Use local SQLite/offline synchronization deliberately; define conflict/retry behavior instead of hiding failures.
+- Sensitive local data belongs in secure storage where appropriate, not plain preferences/logs.
 
-| # | Anty-pattern | Częstość | Opis |
-|---|-------------|----------|------|
-| 1 | Over-specification | 80-90% | Implementuje funkcje których nikt nie żądał |
-| 2 | Test weakening | Wysoka | Osłabia asercje żeby testy przeszły |
-| 3 | Silent threshold change | Wysoka | Obniża coverage/quality targets zamiast naprawiać kod |
-| 4 | Governance bypass | Średnia | Znajduje luki we własnych regułach |
-| 5 | Schema regression | Średnia | Robi masowe refaktoryzacje bez potwierdzenia |
-| 6 | Assertion-free tests | Wysoka | Pisze testy bez asercji — coverage rośnie, weryfikacja = 0 |
-| 7 | Finding dismissal | Wysoka | "To jest pre-existing code" zamiast naprawy |
-| 8 | Tool-switching circumvention | Średnia | Edit zablokowany, więc próbuje sed/echo/python -c |
-| 9 | Context blindness | Wysoka w długich sesjach | Duplikuje logikę, niespójne nazewnictwo |
-| 10 | Defensive over-engineering | 80-90% | Dodaje konfiguracje, abstrakcje, error handling dla scenariuszy które nie istnieją |
----
+## 8. WinForms / DevExpress
 
-## 6. Self-check / Code review
+- Preserve event lifecycle and UI-thread rules.
+- Long-running operations should not block the message loop.
+- Dispose controls/components/resources correctly.
+- When upgrading DevExpress, verify obsolete/removed APIs and behavioral changes before replacing code.
+- Prefer focused compatibility fixes over broad redesign of stable legacy forms.
+- Treat designer-generated files carefully; do not hand-edit generated code unless the framework workflow requires it.
 
-### Reguły
+## 9. Testing
 
-- Po zakończeniu zmian ZAWSZE uruchom: typecheck, test, lint (w tej kolejności)
-- Przed commitem sprawdź czy nie dodajesz: secrets, .env, console.log, TODO/FIXME
-- Sprawdź czy każdy nowy plik ma odpowiadający test
-- Sprawdź czy nie duplikujesz istniejącej logiki — grep codebase
-- Sprawdź dead code — usuwaj nieużywane importy, zmienne, funkcje
-- Sprawdź magic numbers — wyciągnij do named constants
-- Sprawdź deep nesting — max 2 poziomy, powyżej = early return
-- Nie committuj zmian chyba że user explicite o to poprosi
+- Never weaken or delete a valid test merely to make the suite green.
+- Test behavior, not implementation details.
+- New business logic should normally include happy-path and failure/edge coverage.
+- Use the project's existing framework (`xUnit`, `NUnit`, `MSTest`, UI/integration tooling) rather than introducing another one casually.
+- For ASP.NET Core integration tests, prefer realistic application boundaries when authorization/data behavior matters.
+- For EF Core, do not use an in-memory provider when provider-specific SQL behavior is what needs verification.
+- Do not claim completion before relevant tests/build pass or before clearly reporting why they cannot run.
 
-### Quality gate (pre-commit checklist)
+## 10. Validation commands
 
-1. Wszystkie testy przechodzą
-2. Zero błędów typecheckera
-3. Zero błędów lintera
-4. Brak nowych `any` types
-5. Brak hardcoded secrets/keys
-6. Brak console.log w produkcyjnym kodzie
-7. Każda nowa funkcja publiczna ma test
----
+Discover the solution/project first. Typical .NET gate:
 
-## 7. Nazewnictwo
+1. `dotnet restore` only when required
+2. `dotnet build --no-restore` (or the repository's build script)
+3. `dotnet test --no-build` for the relevant solution/projects
+4. formatter/analyzers if the repository configures them (`dotnet format`, Roslyn analyzers, StyleCop, etc.)
+5. platform-specific build when relevant (MAUI Android/iOS, WinForms target framework)
 
-### Reguły
+Do not blindly run Node/Vite/Vitest commands in a .NET-only repository. If the solution contains a web frontend too, validate that frontend separately using its own package scripts.
 
-- Boolean: prefix `is` / `has` / `should` / `can` (`isActive`, `hasPermission`, `shouldRetry`)
-- Event handlers: prefix `handle` (`handleClick`, `handleSubmit`)
-- Stałe: `UPPER_SNAKE_CASE`
-- Typy/Interfejsy: `PascalCase`, bez prefixu `I`
-- Funkcje i zmienne: `camelCase`
-- Pliki: kebab-case (`user-service.ts`, nie `UserService.ts`) — chyba że framework wymusza inną konwencję
-- Nazwy powinny opisywać CO robi, nie JAK (`getUserById`, nie `fetchAndParseAndValidateUser`)
-- Unikaj akronimów i skrótów chyba że powszechnie znane (`url`, `id` OK; `usrMgr` nie)
----
+## 11. Dependencies
 
-## 8. Zależności i importy
+- Inspect `.csproj`, `Directory.Packages.props`, `packages.lock.json` and NuGet configuration before adding packages.
+- Prefer existing dependencies and BCL/framework capabilities over a new package.
+- Do not upgrade unrelated packages during a feature/fix.
+- For a new NuGet package, check maintenance, licensing, target-framework compatibility and operational impact.
 
-### Reguły
+## 12. Security
 
-- NIGDY nie zakładaj że biblioteka jest dostępna — sprawdź package.json / requirements.txt / go.mod
-- NIGDY nie instaluj nowych zależności bez poinformowania usera
-- Preferuj istniejące biblioteki w projekcie > nowa dependency
-- Nie mieszaj package managerów (jeśli projekt używa `bun` — nie używaj `npm`)
-- Importy grouped: stdlib, third-party, local
-- Nie importuj bezpośrednio między packages w monorepo — używaj shared layer
-- Pinuj wersje — deklaruj exact versions w package.json
----
+- Never commit secrets, API keys, certificates, tokens or production connection strings.
+- Never build SQL from concatenated user input.
+- Validate file uploads, paths and external URLs; consider traversal/SSRF risks.
+- Protect state-changing web endpoints against the relevant auth/CSRF threat model.
+- Store MAUI secrets using platform-secure facilities when possible.
+- Treat deserialization of untrusted input as a security boundary.
+- Apply least privilege to database/service credentials.
 
-## 9. Bezpieczeństwo
+## 13. Performance
 
-### Reguły
+- Measure before optimizing.
+- Flag O(n²) work on potentially large collections.
+- Avoid repeated database/network calls inside loops; batch when possible.
+- Watch allocations in hot paths and UI list rendering, but do not micro-optimize ordinary code.
+- For MAUI/WinForms performance issues, distinguish UI-thread work, data access, rendering/binding and network latency.
 
-- NIGDY nie committuj secrets, API keys, credentials, tokenów
-- NIGDY nie loguj secrets ani danych osobowych
-- NIGDY nie konkatenuj user input do SQL queries — używaj parametrized queries
-- NIGDY nie używaj dynamicznego wykonywania kodu z user input
-- NIGDY nie deserializuj niezaufanych danych z zewnętrznych źródeł
-- NIGDY nie autoryzuj po `user_metadata` (Supabase) — jest edytowalne przez usera (`supabase.auth.updateUser`), więc RLS na tym polu = privilege escalation. Rolę trzymaj w `app_metadata` (server-side) lub dedykowanej tabeli ról; nie używaj też top-level claimu `role`
-- Waliduj KAŻDY input na granicy API (Zod, Pydantic, etc.)
-- Skrypty migracyjne / ETL / importy / seedy walidują dane źródłowe jak input z granicy API — tożsamość (nigdy nie przepisuj `from_user`/`owner_id` z danych źródłowych), limity długości, kształt payloadu, przynależność do zasobu. „Jednorazowy / throwaway / usuwany później" nie znosi walidacji ani nie obniża severity findingu
-- Minimum privileges — nie dawaj więcej uprawnień niż potrzeba
-- Nie uruchamiaj `rm -rf` bez explicit user confirmation
-- Nie modyfikuj production database bezpośrednio
-- Rate limiting na KAŻDYM public endpoint
----
+## 14. Architecture
 
-## 10. Type safety
+- Keep dependency direction explicit. UI should not talk directly to persistence unless the existing application is intentionally structured that way.
+- Avoid circular project references.
+- Prefer modular monolith boundaries before introducing distributed-system complexity without a concrete need.
+- Background jobs, messaging (RabbitMQ), SignalR and schedulers (Quartz.NET) require explicit retry/idempotency/failure handling.
+- Production changes should be observable and have a rollback or recovery strategy.
 
-### Reguły
+## 15. AI-specific guardrails
 
-- NIGDY nie używaj `any` — użyj `unknown` z type guards albo zdefiniuj interfejs
-- NIGDY nie używaj type assertions (`as`) chyba że konieczne dla DOM narrowing
-- NIGDY nie używaj non-null assertions (`!`) — obsłuż nullability explicite
-- Użyj discriminated unions dla stanu, nie boolean flags
-- Wszystkie publiczne funkcje mają explicit return types
-- Strict mode ON — `"strict": true` w tsconfig
-- Generics > type assertions
-- Zod/io-ts na granicach systemu (API, pliki, user input)
----
-
-## 11. Filozofia review kodu
-
-### Reguły
-
-- Istniejący kod — bądź surowy. Każda dodana złożoność wymaga uzasadnienia
-- Nowy izolowany kod — bądź pragmatyczny. Jeśli działa i jest testowalny, nie blokuj postępu
-- Duplication > Complexity — prosta duplikacja kodu jest LEPSZA niż złożona abstrakcja DRY
-- Dodanie nowego modułu nie jest nigdy problemem. Zrobienie modułu zbyt złożonym — jest
-- Przy modyfikacji istniejącego pliku pytaj: "Czy ta zmiana sprawia, że istniejący kod jest trudniejszy do zrozumienia?"
-- Preferuj ekstrakcję do nowego modułu/komponentu zamiast komplikowania istniejącego
-- 5-sekundowa reguła nazewnictwa — jeśli nie rozumiesz co robi funkcja/komponent w 5 sekund od nazwy, to zła nazwa
----
-
-## 12. Performance
-
-### Reguły
-
-- O(n²) lub gorzej = wymaga uzasadnienia komentarzem dlaczego nie da się lepiej
-- Pętla z fetchem/zapytaniem do bazy = N+1 query. Użyj batch/join/include
-- Nie ładuj pełnych kolekcji gdy potrzebujesz subset — użyj pagination, limit, select konkretnych kolumn
-- Nowa dependency = uzasadnienie rozmiaru bundle (sprawdź bundlephobia)
-- Dynamic import / React.lazy() dla komponentów > 50KB
-- Nie optymalizuj przedwcześnie — ale MIERZ przed deklaracją "to wystarczy"
----
-
-## 13. Async i race conditions
-
-### Reguły
-
-- useEffect z async = ZAWSZE AbortController w cleanup function
-- setTimeout / setInterval = ZAWSZE cleanup w useEffect return (clearTimeout/clearInterval)
-- Więcej niż 1 boolean do stanu ładowania = użyj state machine (discriminated union)
-- Promise.allSettled gdy odpalasz równoległe operacje które mogą niezależnie failować
-- Promise.finally() do cleanup i state transitions — nie duplikuj logiki w resolve i reject
-- requestAnimationFrame w pętli = sprawdź cancel flag przed kolejnym requestAnimationFrame
-- Operacje wzajemnie wykluczające się (np. load preview) = zablokuj następną dopóki poprzednia się nie zakończy lub nie sfailuje
----
-
-## 14. Architektura
-
-### Reguły
-
-- Zero circular dependencies między modułami — jeśli A importuje B, B nie może importować A
-- Respect layer boundaries — komponent UI nie woła bazy bezpośrednio, idzie przez serwis/hook
-- Single Responsibility dotyczy też plików — plik z komponentem nie zawiera logiki biznesowej
-- API contracts (interfejsy, typy propsów) są stabilne — zmiana interfejsu = świadoma decyzja, nie side-effect refaktoru
-- Nowa zależność między modułami = pytanie: "czy to nie tworzy nieodwracalnego couplingu?".
+- Inspect the repository before assuming framework/version/package availability.
+- Do not invent APIs from memory when a library/version can be checked locally.
+- Do not alter tests, analyzers or quality thresholds to hide a defect.
+- Do not dismiss review findings as “pre-existing” without reporting them.
+- Do not create speculative layers/configuration for scenarios outside the task.
+- If an instruction is ambiguous but the answer can be discovered from code/config, discover it instead of asking.
