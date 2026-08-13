@@ -1,32 +1,35 @@
 # .NET Stack Routing
 
-When the repository contains .NET/C# projects, prefer the .NET-specific agents for stack-specific questions while keeping the upstream workflow/pipeline intact.
+When the repository contains `.sln`, `.slnx`, `.csproj` or C# source, this rule is authoritative for stack-specific work.
 
-## Agent routing
-- Architecture and solution boundaries -> `dotnet-architect`
-- ASP.NET Core, C#, EF Core, SignalR, RabbitMQ, Quartz.NET -> `dotnet-backend`
-- .NET MAUI Android/iOS -> `maui-engineer`
+## Prefer
+- Architecture -> `dotnet-architect`
+- ASP.NET Core / C# / APIs / SignalR / RabbitMQ / Quartz.NET -> `dotnet-backend`
+- .NET MAUI -> `maui-engineer`
 - WinForms / DevExpress -> `winforms-devexpress`
-- SQL Server / PostgreSQL / SQLite / EF Core persistence -> `database-architect-dotnet`
+- SQL Server / PostgreSQL / SQLite / EF Core -> `database-architect-dotnet`
 - Security -> `security-dotnet`
-- Docker / NGINX / CI/CD / Grafana / Loki -> `devops-dotnet`
+- Docker / NGINX / CI/CD / observability -> `devops-dotnet`
 
-Reuse upstream agents for generic concerns such as performance, simplicity, repository research, documentation research and broad architecture review.
+Reuse generic upstream agents for repository research, performance, simplicity, security review and documentation research.
+
+## Do not route .NET work to
+- `kieran-typescript-reviewer`
+- `feature-builder-ui`
+- `feature-builder-fullstack`
+- `feature-builder-data`
+- `tailwind-react-guidelines`
+- `supabase-dev-guidelines`
+
+unless the inspected repository actually contains those technologies.
+
+## Validation defaults
+1. Detect target framework and solution/project structure.
+2. Restore only when dependency assets require it.
+3. Build the narrowest relevant project/solution.
+4. Run targeted tests before broader suites.
+5. Treat MAUI/WinForms compile validation separately from device/manual UI validation.
+6. Inspect EF Core migrations and provider differences for schema changes.
 
 ## Council policy
-Use `ask-council` when:
-- the choice is expensive to reverse,
-- several disciplines are involved,
-- architecture/security/performance trade-offs conflict,
-- a production incident has multiple plausible root causes,
-- the user explicitly asks for several expert perspectives.
-
-Do not use a council for trivial coding tasks. Keep panels to 3-7 agents.
-
-## Engineering defaults
-- Prefer incremental changes over rewrites.
-- Preserve existing conventions unless they cause a concrete problem.
-- Use async/cancellation correctly.
-- Treat observability and rollback as part of production design.
-- Measure performance before optimizing.
-- For upgrades (especially DevExpress/.NET), verify removed/obsolete APIs and migration behavior before changing code.
+Use `ask-council` for expensive-to-reverse choices, architecture/security/performance trade-offs, migrations, production incidents with competing hypotheses, or explicit multi-expert requests. Keep panels focused.
